@@ -17,7 +17,7 @@
     };
   };
 
-  outputs = { self, nixpkgs, flake-utils, geolite2-country, geolite2-asn }:
+  outputs = { self, nixpkgs, flake-utils, geolite2-city, geolite2-asn }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
@@ -32,7 +32,6 @@
           buildInputs = [ pkgs.libpcap ];
           nativeBuildInputs = [ pkgs.pkg-config ];
 
-          CGO_ENABLED = 1;
           ldflags = [
             "-s" "-w"
             "-X" "bandwidth-monitor/version.Version=${bandwidth-monitor.version}"
