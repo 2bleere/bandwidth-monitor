@@ -63,6 +63,7 @@ type Collector struct {
 	ifaceTypeCache map[string]string
 	vpnStatusFiles map[string]string // iface name → sentinel file path
 	allowedIfaces  map[string]bool   // nil = all; non-nil = whitelist
+	wanIfaces      map[string]bool   // nil = auto-detect; non-nil = explicit WAN interfaces
 	nlHandle       *vnl.Handle       // persistent netlink handle
 	addrCache      map[int][]string  // cached addresses by link index
 	addrCacheTime  time.Time         // last address refresh
@@ -85,7 +86,7 @@ type rawStat struct {
 	ts        time.Time
 }
 
-func New(vpnStatusFiles map[string]string, allowedIfaces []string) *Collector {
+func New(vpnStatusFiles map[string]string, allowedIfaces []string, wanIfaces []string) *Collector {
 	if vpnStatusFiles == nil {
 		vpnStatusFiles = make(map[string]string)
 	}
@@ -94,6 +95,13 @@ func New(vpnStatusFiles map[string]string, allowedIfaces []string) *Collector {
 		allowed = make(map[string]bool, len(allowedIfaces))
 		for _, name := range allowedIfaces {
 			allowed[name] = true
+		}
+	}
+	var wanSet map[string]bool
+	if len(wanIfaces) > 0 {
+		wanSet = make(map[string]bool, len(wanIfaces))
+		for _, name := range wanIfaces {
+			wanSet[name] = true
 		}
 	}
 	// Create a persistent netlink handle to avoid per-poll socket creation.
@@ -109,6 +117,7 @@ func New(vpnStatusFiles map[string]string, allowedIfaces []string) *Collector {
 		ifaceTypeCache: make(map[string]string),
 		vpnStatusFiles: vpnStatusFiles,
 		allowedIfaces:  allowed,
+		wanIfaces:      wanSet,
 		nlHandle:       nlh,
 		addrCache:      make(map[int][]string),
 	}
@@ -366,7 +375,7 @@ func (c *Collector) poll() {
 			TxDropped:       cur.txDropped,
 			Timestamp:       now.UnixMilli(),
 		}
-		iface.WAN = IsWAN(iface)
+		iface.WAN = c.isWAN(iface)
 
 		if hasPrev {
 			dt := now.Sub(prev.ts).Seconds()
@@ -513,17 +522,69 @@ func classifyLinkUncached(li *linkInfo) string {
 	return "physical"
 }
 
-// IsWAN reports whether the given interface looks like a WAN uplink.
-// It checks (in order): PPP type, then whether any assigned IPv4 address is
-// publicly-routable (not RFC1918, not link-local, not loopback).
+// isWAN reports whether the given interface looks like a WAN uplink.
+// It checks (in order):
+//  1. Explicit WAN_INTERFACE override (set via env var)
+//  2. PPP type
+//  3. Whether any assigned IPv4 address is publicly-routable
+//  4. Whether the interface carries the IPv4 default route (handles double-NAT)
+//
 // IPv6 is intentionally ignored: with prefix delegation, LAN interfaces
 // commonly carry globally-routable IPv6 addresses.
+func (c *Collector) isWAN(iface *InterfaceStat) bool {
+	// Explicit override takes priority
+	if c.wanIfaces != nil {
+		return c.wanIfaces[iface.Name]
+	}
+	if iface.IfaceType == "ppp" {
+		return true
+	}
+	for _, a := range iface.Addrs {
+		if isPublicIPv4(a) {
+			return true
+		}
+	}
+	if hasDefaultRoute(iface.Name) {
+		return true
+	}
+	return false
+}
+
+// IsWAN is a standalone version for use outside the Collector (no override).
 func IsWAN(iface *InterfaceStat) bool {
 	if iface.IfaceType == "ppp" {
 		return true
 	}
 	for _, a := range iface.Addrs {
 		if isPublicIPv4(a) {
+			return true
+		}
+	}
+	if hasDefaultRoute(iface.Name) {
+		return true
+	}
+	return false
+}
+
+// hasDefaultRoute reports whether the named interface carries an IPv4 default route.
+func hasDefaultRoute(ifaceName string) bool {
+	routes, err := vnl.RouteList(nil, vnl.FAMILY_V4)
+	if err != nil {
+		return false
+	}
+	for _, r := range routes {
+		// Default route: Dst is nil or 0.0.0.0/0
+		if r.Dst != nil {
+			ones, bits := r.Dst.Mask.Size()
+			if ones != 0 || bits == 0 {
+				continue
+			}
+		}
+		link, err := vnl.LinkByIndex(r.LinkIndex)
+		if err != nil {
+			continue
+		}
+		if link.Attrs().Name == ifaceName {
 			return true
 		}
 	}

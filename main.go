@@ -176,7 +176,20 @@ func main() {
 		log.Printf("INTERFACES: showing %d interface(s): %s", len(allowedIfaces), strings.Join(allowedIfaces, ", "))
 	}
 
-	statsCollector := collector.New(vpnStatusFiles, allowedIfaces)
+	// Parse WAN_INTERFACE: comma-separated list of interface names to treat as WAN.
+	// If not set, WAN is auto-detected (public IP, PPP, or default route).
+	var wanIfaces []string
+	if raw := os.Getenv("WAN_INTERFACE"); raw != "" {
+		for _, name := range strings.Split(raw, ",") {
+			name = strings.TrimSpace(name)
+			if name != "" {
+				wanIfaces = append(wanIfaces, name)
+			}
+		}
+		log.Printf("WAN_INTERFACE: %s", strings.Join(wanIfaces, ", "))
+	}
+
+	statsCollector := collector.New(vpnStatusFiles, allowedIfaces, wanIfaces)
 
 	// Shared reverse-DNS resolver — used by talkers, conntrack, and debug.
 	dnsResolver := resolver.New()

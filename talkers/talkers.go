@@ -438,6 +438,7 @@ func (t *Tracker) captureDevice(device string) {
 	// packet. At 10 MB/s there are ~7000 pps but only 10-100 unique IPs.
 	// The cache hits 99%+ of lookups, eliminating the main GC bottleneck.
 	ipStrCache := make(map[[16]byte]string, 256)
+	ipCacheResets := 0
 	ipStr := func(ip net.IP) string {
 		var k [16]byte
 		copy(k[:], ip.To16())
@@ -457,6 +458,16 @@ func (t *Tracker) captureDevice(device string) {
 		case <-t.stopCh:
 			return
 		default:
+		}
+
+		// Periodically reset the IP string cache to bound memory on
+		// routers that see a large number of unique IPs over time.
+		if len(ipStrCache) > 100000 {
+			ipStrCache = make(map[[16]byte]string, 256)
+			ipCacheResets++
+			if ipCacheResets == 1 {
+				log.Printf("talkers: reset IP string cache on %s (>100k entries)", device)
+			}
 		}
 
 		// Phase 1: Parse all packets in the block WITHOUT holding the lock.
@@ -662,6 +673,13 @@ func (t *Tracker) rotateBuckets() {
 				idx++
 			}
 			if idx > 0 {
+				// Nil out old entries so the backing array doesn't
+				// prevent GC of expired bucket data. Without this,
+				// the pointers stay alive until append reallocates
+				// the backing array — leaking up to 24h of buckets.
+				for i := 0; i < idx; i++ {
+					t.buckets[i] = nil
+				}
 				t.buckets = t.buckets[idx:]
 			}
 			t.current = &bucket{
