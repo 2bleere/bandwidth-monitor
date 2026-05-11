@@ -324,10 +324,11 @@ The included `bandwidth-monitor.service` runs the binary with:
 ## Configuration
 
 cp env.example /opt/bandwidth-monitor/.env
-```
+
 
 ### Environment Variables
 
+| Variable | Default | Description |
 |----------|---------|-------------|
 | `LISTEN` | `:8080` | Web listen address (e.g. `198.51.100.1:8080`) |
 | `LISTEN_PROTOCOL` | `http` | Web server protocol: `http` or `https` |
@@ -358,6 +359,7 @@ If `LISTEN_PROTOCOL=https` but cert/key paths are missing or invalid, the server
 
 #### DNS (mutually exclusive — first configured wins)
 
+| Variable | Default | Description |
 |----------|---------|-------------|
 | `ADGUARD_URL` | *(disabled)* | AdGuard Home base URL (e.g. `http://adguard.example.net`) |
 | `ADGUARD_USER` | | AdGuard Home username |
@@ -615,7 +617,6 @@ Or for the current user only, symlink the script and edit the `Exec=` path in th
 
 ## Architecture
 
-```
 main.go                   → entry point, env config, wires all components
 collector/                → netlink-based interface stats (RTM_GETLINK/RTM_GETADDR), rates, 24h history, VPN routing
 conntrack/                → netlink-based conntrack (NAT) table reader via ti-mo/conntrack
@@ -653,7 +654,7 @@ env.example               → example environment configuration
 bandwidth-monitor.service → systemd unit file
 flake.nix                 → Nix flake with package + NixOS module
 Makefile                  → build, install, GeoIP download targets
-```
+
 
 ---
 
