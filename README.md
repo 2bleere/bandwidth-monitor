@@ -335,11 +335,16 @@ chmod 0600 /opt/bandwidth-monitor/.env
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `LISTEN` | `:8080` | HTTP listen address (e.g. `198.51.100.1:8080`) |
+| `LISTEN` | `:8080` | Web listen address (e.g. `198.51.100.1:8080`) |
+| `LISTEN_PROTOCOL` | `http` | Web server protocol: `http` or `https` |
+| `TLS_CERT_FILE` | *(empty)* | TLS certificate path (required when `LISTEN_PROTOCOL=https`) |
+| `TLS_KEY_FILE` | *(empty)* | TLS private key path (required when `LISTEN_PROTOCOL=https`) |
 | `PROMISCUOUS` | `true` | Enable promiscuous mode for packet capture (`true`/`false`) |
 | `INTERFACES` | *(all)* | Comma-separated list of interfaces to monitor and display (e.g. `eth0,ppp0,wg0`). Controls both the web UI and packet capture. If not set, all interfaces are used. |
 | `GEO_CITY` | `GeoLite2-City.mmdb` | Path to GeoLite2 City MMDB (includes country, city, coordinates for map). ~57 MB. For devices with limited flash (e.g. OpenWrt routers), use `GeoLite2-Country.mmdb` (~6 MB) instead — set `GEO_CITY=GeoLite2-Country.mmdb`. Country data still works, just without city-level map precision. |
 | `GEO_ASN` | `GeoLite2-ASN.mmdb` | Path to GeoLite2 ASN MMDB (~11 MB) |
+
+When `LISTEN_PROTOCOL=https`, the server uses `http.Server.ListenAndServeTLS` with `TLS_CERT_FILE` and `TLS_KEY_FILE`.
 
 #### DNS (mutually exclusive — first configured wins)
 
