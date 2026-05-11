@@ -10,6 +10,7 @@ Single-binary deployment with an embedded web UI, optional DNS stats (AdGuard Ho
 - [Features](#features)
 - [Quick Start](#quick-start)
 - [Installation](#installation)
+  - [Service Management](#service-management)
 - [Configuration](#configuration)
 - [macOS Menu Bar Plugin](#macos-menu-bar-plugin)
 - [Windows System Tray Widget](#windows-system-tray-widget)
@@ -322,18 +323,11 @@ The included `bandwidth-monitor.service` runs the binary with:
 
 ## Configuration
 
-All configuration is via environment variables. Copy the example file and edit:
-
-```bash
 cp env.example /opt/bandwidth-monitor/.env
-chmod 0600 /opt/bandwidth-monitor/.env
 ```
 
 ### Environment Variables
 
-#### Core
-
-| Variable | Default | Description |
 |----------|---------|-------------|
 | `LISTEN` | `:8080` | Web listen address (e.g. `198.51.100.1:8080`) |
 | `LISTEN_PROTOCOL` | `http` | Web server protocol: `http` or `https` |
@@ -344,11 +338,26 @@ chmod 0600 /opt/bandwidth-monitor/.env
 | `GEO_CITY` | `GeoLite2-City.mmdb` | Path to GeoLite2 City MMDB (includes country, city, coordinates for map). ~57 MB. For devices with limited flash (e.g. OpenWrt routers), use `GeoLite2-Country.mmdb` (~6 MB) instead — set `GEO_CITY=GeoLite2-Country.mmdb`. Country data still works, just without city-level map precision. |
 | `GEO_ASN` | `GeoLite2-ASN.mmdb` | Path to GeoLite2 ASN MMDB (~11 MB) |
 
-When `LISTEN_PROTOCOL=https`, the server uses `http.Server.ListenAndServeTLS` with `TLS_CERT_FILE` and `TLS_KEY_FILE`.
+#### HTTPS/TLS Configuration
+
+By default, the server runs on HTTP. To enable HTTPS:
+Both certificate and key must be in PEM format (`.crt`, `.pem`, etc. all work as long as the content is valid PEM-encoded data).
+
+**Example HTTPS setup:**
+```bash
+export LISTEN=:8443
+export LISTEN_PROTOCOL=https
+export TLS_CERT_FILE=/etc/bandwidth-monitor/server.crt
+export TLS_KEY_FILE=/etc/bandwidth-monitor/server.key
+./bandwidth-monitor
+```
+
+The server will start with TLS and log: `server: TLS enabled cert=... key=...`
+
+If `LISTEN_PROTOCOL=https` but cert/key paths are missing or invalid, the server will fail at startup with a clear error message.
 
 #### DNS (mutually exclusive — first configured wins)
 
-| Variable | Default | Description |
 |----------|---------|-------------|
 | `ADGUARD_URL` | *(disabled)* | AdGuard Home base URL (e.g. `http://adguard.example.net`) |
 | `ADGUARD_USER` | | AdGuard Home username |
